@@ -81,11 +81,19 @@ class Game():
                 if action == "spl": # should split
                     self.hands.append([hand[0], self.deck.draw()])
                     self.hands.append([hand[1], self.deck.draw()])
+                    print("splitting, new stack of hands to deal:")
+                    print(self.hands)
                     continue
 
             # If you can't split, figure out what your hand is and take the next step
-            next_action = ""
+    
+            next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
             while next_action!="-":
+                if next_action=="db" or next_action=="dbs":
+                    print("figure out doubling, proxy with hit for now")
+                    hand.append(self.deck.draw())
+                if next_action=="h" or next_action=="sr":
+                    hand.append(self.deck.draw())
                 next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
 
             self.final_hands.append(hand)
@@ -115,16 +123,19 @@ class Game():
         n_aces = sum([True if x == "A" else False for x in hand])
 
         if n_aces>0:
-            pass
-        print("FIGURE OUT HOW TO DETERMINE THE STATE OF A HAND WITH ACES")
-        action="uh oh"
-        return action
+            ace_value = Game.figure_out_soft_hand(hand, n_aces)
+            action = rule_set.loc[ace_value, up]
+            return action
+
+        print("hit an uncovered case")
+        return None
 
     @classmethod
     def get_rules(cls, path:str) -> pd.DataFrame:
         return pd.read_csv(path, sep=";").set_index("PH")
 
-    def figure_out_soft_hand(self, hand, n_aces:int):
+    @classmethod
+    def figure_out_soft_hand(cls, hand, n_aces:int):
         """
         1. split hand into aces and other
         2. compute total value of other
@@ -136,10 +147,25 @@ class Game():
                     val.append = 11*n + m*1
         4. Return as s[total] 
         """
-        other_value = "something"
-        print("FIGURE OUT OTHER_VALUE")
-        aces_values = [m*11 + (n_aces-m)*1 for m in range(n_aces+1,0,1)]
+        non_aces = [x for x in hand if x!="A"]
+        other_value = sum([int(x) for x in non_aces])
+        aces_values = [m*11 + (n_aces-m)*1 for m in range(0,n_aces+1,1)]
 
+        total_values = [x + other_value for x in aces_values]
+
+        print("ace evaluation:")
+        print(hand)
+        print(n_aces)
+        print(aces_values)
+        print(total_values)
+
+        hand_value = max([x for x in total_values if x<22])
+
+        hard_or_soft = "s" if hand_value-other_value>=11 else "h" # should actually be a multiple of 11
+
+        final_value = hard_or_soft + str(hand_value)
+
+        return final_value
 
 # class Agent
 class Agent():
@@ -163,7 +189,7 @@ def main():
     deck.shuffle()
     
     game = Game(n_players=2)
-    game.start_round()
+    game.perform_round()
 
     print(game.dealer.up)
     print(game.dealer.hole)
