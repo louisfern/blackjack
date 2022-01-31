@@ -89,6 +89,10 @@ class Game():
     
             next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
             while next_action!="-":
+                if next_action=="B":
+                    # hand = ["BUSTED"]
+                    next_action = "-"
+                    continue
                 if next_action=="db" or next_action=="dbs":
                     print("figure out doubling, proxy with hit for now")
                     hand.append(self.deck.draw())
@@ -97,9 +101,6 @@ class Game():
                 next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
 
             self.final_hands.append(hand)
-                
-            
-
     
     @staticmethod
     def determine_hand_action(hand, up, rule_set) -> int:
@@ -114,6 +115,8 @@ class Game():
             hand_value = sum([int(x) for x in hand])
             if hand_value<12:
                 action = rule_set.loc[str(hand_value), up]
+            elif hand_value>21:
+                action = "B"
             else: 
                 action = rule_set.loc["h"+str(hand_value), up]
 
@@ -124,7 +127,10 @@ class Game():
 
         if n_aces>0:
             ace_value = Game.figure_out_soft_hand(hand, n_aces)
-            action = rule_set.loc[ace_value, up]
+            if ace_value=="B":
+                action = "B"
+            else:
+                action = rule_set.loc[ace_value, up]
             return action
 
         print("hit an uncovered case")
@@ -154,17 +160,21 @@ class Game():
         total_values = [x + other_value for x in aces_values]
 
         print("ace evaluation:")
-        print(hand)
-        print(n_aces)
-        print(aces_values)
-        print(total_values)
+        print("    hand: {}".format(hand))
+        print("    total values: {}".format(total_values))
 
-        hand_value = max([x for x in total_values if x<22])
+        hand_values = [x for x in total_values if x<22]
+        if hand_values:
+            hand_value = max(hand_values)
 
-        hard_or_soft = "s" if hand_value-other_value>=11 else "h" # should actually be a multiple of 11
+            hard_or_soft = "s" if hand_value-other_value>=11 else "h" # should actually be a multiple of 11
 
-        final_value = hard_or_soft + str(hand_value)
+            final_value = hard_or_soft + str(hand_value)
+        
+        else:
+            final_value = "B"
 
+        print("    final value: {}".format(final_value))
         return final_value
 
 # class Agent
@@ -191,8 +201,8 @@ def main():
     game = Game(n_players=2)
     game.perform_round()
 
-    print(game.dealer.up)
-    print(game.dealer.hole)
+    print("Dealer   UP {}   HOLE {}".format(game.dealer.up, game.dealer.hole))
+    
 
     print("final hands")
     print(game.final_hands)
