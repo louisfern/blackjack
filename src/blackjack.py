@@ -67,6 +67,7 @@ class Game():
 
         self.dealer.up = self.deck.draw()
 
+        # Check for dealer blackjack
         print(self.hands)
 
         while self.hands:
@@ -88,14 +89,15 @@ class Game():
             # If you can't split, figure out what your hand is and take the next step
     
             next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
-            while next_action!="-":
+            while (next_action!="-") and (next_action!="dbs"):
                 if next_action=="B":
                     # hand = ["BUSTED"]
                     next_action = "-"
                     continue
-                if next_action=="db" or next_action=="dbs":
-                    print("figure out doubling, proxy with hit for now")
+                if next_action=="db":
                     hand.append(self.deck.draw())
+                    next_action = "-"
+                    print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
                 if next_action=="h" or next_action=="sr":
                     hand.append(self.deck.draw())
                 next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
@@ -103,7 +105,7 @@ class Game():
             self.final_hands.append(hand)
     
     @staticmethod
-    def determine_hand_action(hand, up, rule_set) -> int:
+    def determine_hand_action(hand, up, rule_set) -> str:
         """
         Don't deal with splits here
         Return the action to take, given the dealer's up card and the rule set
@@ -148,9 +150,8 @@ class Game():
         3. Find max of aces + other GIVEN
             value of aces IS 
             val = []
-            for n in 1:n_aces:
-                for m in n_aces:1:
-                    val.append = 11*n + m*1
+                for n in n_aces:1:
+                    val.append = 11*n + (n_aces-n)
         4. Return as s[total] 
         """
         non_aces = [x for x in hand if x!="A"]
@@ -203,7 +204,6 @@ def main():
 
     print("Dealer   UP {}   HOLE {}".format(game.dealer.up, game.dealer.hole))
     
-
     print("final hands")
     print(game.final_hands)
 
