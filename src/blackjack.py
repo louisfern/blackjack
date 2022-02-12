@@ -2,6 +2,22 @@
 blackjack.py
 
 MVP of a blackjack engine
+
+NOTES:
+
+Each player has any number of hands. 
+Each hand has an associated wager which is set before the hand is dealt. 
+Need to be able to link directly between wagers and hands in order to pay out the players
+This may require more sophistication in the Player object
+
+Current state:
+Players have a list of lists that represent the array of hands
+Players have an array of floats, which contains each bet
+
+Proposal: 
+Players have an array of Hand objects
+A Hand object contains a list (the hand) and a wager property (the bet)
+Can move the "hand evaluation logic" to this class, perhaps?
 """
 
 import random
@@ -37,6 +53,22 @@ class Deck():
         card = self.stack.pop()
 
         return card
+
+class Hand():
+    """
+    Proposal: 
+    Players have an array of Hand objects
+    A Hand object contains a list for the hand and a wager property
+    Can move the "hand evaluation logic" to this class, perhaps?
+
+    Could just make this a pretty thin dataclass if I wanted to update my code
+    """
+    def __init__(self, wager=1.0):
+        self.wager = wager
+        self.hand = []
+
+    def draw_hand(self, deck):
+        self.hand = [deck.draw(), deck.draw()]
 
 
 class Game(): 
@@ -76,6 +108,8 @@ class Game():
             p.deal_hands(self.deck)
 
         self.dealer.up = self.deck.draw()
+
+        self.dealer.hand = [self.dealer.up, self.dealer.hole]
 
         # Check for dealer blackjack
 
@@ -128,13 +162,53 @@ class Game():
 
                 p.final_hands.append(hand)
             
+        # Deal with the consequences of doubling and somehow
+        self.update_wagers()
+
         # Dealer has to play their hand
-
+        self.dealer_play_hand()
+        
         # Assess the final hands against the dealer hand
-        self.assess_hand_against_dealer()
+        self.assess_hands_against_dealer()
 
-    def assess_hand_against_dealer(self):
+        return None
+
+    def assess_hands_against_dealer(self):
+        """
+
+        For each player:
+            For each hand:
+                Does dealer have blackjack?
+                    Do you have blackjack? Tie Else Bust
+                Do you have blackjack? If so, Blackjack
+                Did you bust? If so, Bust
+                Did you beat the dealer's number? If so, win
+                Did you tie the dealer's number? If so, push
+                Else, Bust
+        """
+    
+    def update_wagers(self):
         return 1
+
+    def dealer_play_hand(self):
+        # Copy/paste of the loop above, should functionalize this
+        print("DEALER HAND: {} {}".format(self.dealer.hand[0], self.dealer.hand[1]))
+        next_action = self.determine_hand_action(self.dealer.hand, "0", self.dealer_rule_set)
+        print("next action: {}".format(next_action))
+        while (next_action!="-") and (next_action!="dbs"):
+            if next_action=="B":
+                next_action = "-"
+                continue
+            if next_action=="db":
+                self.dealer.hand.append(self.deck.draw())
+                next_action = "-"
+                print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
+            if next_action=="h" or next_action=="sr":
+                self.dealer.hand.append(self.deck.draw())
+                print("Dealer hit: {}".format(self.dealer.hand))
+            next_action = self.determine_hand_action(self.dealer.hand, "0", self.dealer_rule_set)
+            print("next action: {}".format(next_action))
+        return None
     
     @staticmethod
     def determine_hand_action(hand, up, rule_set) -> str:
@@ -224,6 +298,7 @@ class Dealer(Agent):
         self.bank = 10E6
         self.up = None
         self.hole = None
+        self.hand = None
 
 # class Player sup Agent
 class Player(Agent):
