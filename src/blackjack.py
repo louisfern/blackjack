@@ -91,6 +91,42 @@ class Hand():
         self.wager += self.wager_size
         return self
 
+    def determine_hand_action(self, up, rule_set) -> str:
+        """
+        Don't deal with splits here
+        Return the action to take, given the dealer's up card and the rule set
+        up: Dealer's upcard. If checking the dealer's hand, pass in "0". If player, use dealer's upcard. String
+        rule_set: Dataframe of rule set
+        """
+        hand = self.hand
+        action = ""
+        is_hand_all_integers = all([isInteger(x) for x in hand])
+        # If all cards are integers, return the sum
+        if is_hand_all_integers:
+            hand_value = sum([int(x) for x in hand])
+            if hand_value<12:
+                action = rule_set.loc[str(hand_value), up]
+            elif hand_value>21:
+                action = "B"
+            else: 
+                action = rule_set.loc["h"+str(hand_value), up]
+
+            return action
+        # If some cards are aces, figure out what the total is
+        
+        n_aces = sum([True if x == "A" else False for x in hand])
+
+        if n_aces>0:
+            ace_value = Game.figure_out_soft_hand(hand, n_aces)
+            if ace_value=="B":
+                action = "B"
+            else:
+                action = rule_set.loc[ace_value, up]
+            return action
+
+        print("hit an uncovered case")
+        return -1
+
 
 class Game(): 
     """
@@ -180,7 +216,7 @@ class Game():
                 # If you can't split, figure out what your hand is and take the next step
         
                 # TODO pick up here. Do we move this loop into the Hand class?
-                next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
+                next_action = hand.determine_hand_action(self.dealer.up, self.rule_set)
                 while (next_action!="-") and (next_action!="dbs"):
                     if next_action=="B":
                         # hand = ["BUSTED"]
@@ -192,7 +228,7 @@ class Game():
                         print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
                     if next_action=="h" or next_action=="sr":
                         hand.append(self.deck.draw())
-                    next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
+                    next_action = hand.determine_hand_action(self.dealer.up, self.rule_set)
 
                 p.final_hands.append(hand)
             
@@ -220,6 +256,7 @@ class Game():
                 Did you tie the dealer's number? If so, push
                 Else, Bust
         """
+        return 1
     
     def update_wagers(self):
         return 1
@@ -250,6 +287,7 @@ class Game():
         Don't deal with splits here
         Return the action to take, given the dealer's up card and the rule set
         """
+        raise DeprecationWarning
         action = ""
         is_hand_all_integers = all([isInteger(x) for x in hand])
         # If all cards are integers, return the sum
