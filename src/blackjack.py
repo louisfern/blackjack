@@ -19,7 +19,7 @@ Players have an array of Hand objects
 A Hand object contains a list (the hand) and a wager property (the bet)
 Can move the "hand evaluation logic" to this class, perhaps?
 """
-
+from copy import deepcopy
 import random
 import pandas as pd
 
@@ -63,12 +63,33 @@ class Hand():
 
     Could just make this a pretty thin dataclass if I wanted to update my code
     """
-    def __init__(self, wager=1.0):
-        self.wager = wager
+    def __init__(self, wager_size=1.0):
+        self.wager_size = wager_size
+        self.wager = wager_size
         self.hand = []
+        self.is_blackjack = None
+        self.can_split = None
+
+    def __repr__(self):
+        rep = "WAGER: {}   HAND: {}".format(self.wager, self.hand)
 
     def draw_hand(self, deck):
         self.hand = [deck.draw(), deck.draw()]
+        self.is_blackjack()
+        self.can_split()
+        return self
+
+    def is_blackjack(self):
+        self.is_blackjack = set(self.hand)==BLACKJACK
+        return self
+
+    def can_split(self):
+        self.can_split = len(set(self.hand))==1
+        return self
+
+    def double_down(self):
+        self.wager += self.wager_size
+        return self
 
 
 class Game(): 
@@ -109,12 +130,15 @@ class Game():
 
         self.dealer.up = self.deck.draw()
 
-        self.dealer.hand = [self.dealer.up, self.dealer.hole]
+        # Hack a Hand object into existence for the dealer
+        dealer_hand = Hand()
+        dealer_hand.hand = [self.dealer.up, self.dealer.hole]
+        dealer_hand.hand.is_blackjack()
+
+        self.dealer.hand = dealer_hand
 
         # Check for dealer blackjack
-
-        dealer_has_blackjack = {self.dealer.hole, self.dealer.up}==BLACKJACK
-        if dealer_has_blackjack:
+        if self.dealer.hand.is_blackjack:
             # If dealer has blackjack, just pass everyone's hands on to the final
             # list of hands and we will evaluate later
             # hack
@@ -123,6 +147,9 @@ class Game():
                 p.final_hands = p.hands
             return None
 
+        print("Dealer hand:")
+        print(self.dealer.hand)
+        print("Player hands:")
         [print(p.hands) for p in self.players]
     
         for p in self.players:
@@ -130,7 +157,7 @@ class Game():
                 hand = p.hands.pop()
 
                 # If you can split, and should split, do so and append two new hands
-                if len(set(hand))==1: # can split
+                if hand.can_split: # can split
                     hand_string = hand[0] + "-" + hand[1]
                     
                     # TODO: if we're splitting aces, only get one card apiece
@@ -138,14 +165,21 @@ class Game():
                     action = self.rule_set.loc[hand_string, self.dealer.up]
                     
                     if action == "spl": # should split
-                        p.hands.append([hand[0], self.deck.draw()])
-                        p.hands.append([hand[1], self.deck.draw()])
+                        new_hand_1 = deepcopy(hand)
+                        new_hand_2 = deepcopy(hand)
+                        
+                        new_hand_1.hand = [hand[0], self.deck.draw()]
+                        new_hand_2.hand = [hand[1], self.deck.draw()]
+                        
+                        p.hands.append(new_hand_1)
+                        p.hands.append(new_hand_2)
                         print("splitting, new stack of hands to deal:")
                         print(p.hands)
                         continue
 
                 # If you can't split, figure out what your hand is and take the next step
         
+                # TODO pick up here. Do we move this loop into the Hand class?
                 next_action = self.determine_hand_action(hand, self.dealer.up, self.rule_set)
                 while (next_action!="-") and (next_action!="dbs"):
                     if next_action=="B":
@@ -302,13 +336,13 @@ class Dealer(Agent):
 
 # class Player sup Agent
 class Player(Agent):
-    def __init__(self, bank:float=100, n_hands:int=1):
+    def __init__(self, bank:float=100, n_hands:int=1, bet_size:float=5.0):
         super().__init__(bank=bank)
         self.n_hands=n_hands
         self.hands=[]
         self.final_hands=[]
         self.wagers=[]
-        self.bet_size=5
+        self.bet_size=bet_size
     
     def update_bet_size(self, game) -> float:
         """
@@ -318,7 +352,8 @@ class Player(Agent):
         raise NotImplementedError()
 
     def deal_hands(self, deck):
-        self.hands = [[deck.draw(), deck.draw()] for n in range(self.n_hands)]
+        # self.hands = [[deck.draw(), deck.draw()] for n in range(self.n_hands)]
+        self.hands = [Hand(wager_size=self.bet_size).draw_hand(deck) for n in range(self.n_hands)]
 
     def wager(self):
         self.wagers = [self.bet_size for n in range(self.n_hands)]
