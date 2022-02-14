@@ -72,18 +72,19 @@ class Hand():
 
     def __repr__(self):
         rep = "WAGER: {}   HAND: {}".format(self.wager, self.hand)
+        return rep
 
     def draw_hand(self, deck):
         self.hand = [deck.draw(), deck.draw()]
-        self.is_blackjack()
-        self.can_split()
+        self.is_hand_blackjack()
+        self.can_split_hand()
         return self
 
-    def is_blackjack(self):
+    def is_hand_blackjack(self):
         self.is_blackjack = set(self.hand)==BLACKJACK
         return self
 
-    def can_split(self):
+    def can_split_hand(self):
         self.can_split = len(set(self.hand))==1
         return self
 
@@ -117,7 +118,7 @@ class Hand():
         n_aces = sum([True if x == "A" else False for x in hand])
 
         if n_aces>0:
-            ace_value = Game.figure_out_soft_hand(hand, n_aces)
+            ace_value = Hand.figure_out_soft_hand(hand, n_aces)
             if ace_value=="B":
                 action = "B"
             else:
@@ -126,6 +127,62 @@ class Hand():
 
         print("hit an uncovered case")
         return -1
+
+    def resolve_hand(self, dealer_up, rule_set, deck):
+        """
+        Method to determine the next action to take
+        """
+        next_action = self.determine_hand_action(dealer_up, rule_set)
+        while (next_action!="-") and (next_action!="dbs"):
+            if next_action=="B":
+                next_action = "-"
+                continue
+            if next_action=="db":
+                self.hand.append(deck.draw())
+                next_action = "-"
+                print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
+            if next_action=="h" or next_action=="sr":
+                self.hand.append(deck.draw())
+            next_action = self.determine_hand_action(dealer_up, rule_set)
+
+        return self
+
+    @classmethod
+    def figure_out_soft_hand(cls, hand, n_aces:int):
+        """
+        1. split hand into aces and other
+        2. compute total value of other
+        3. Find max of aces + other GIVEN
+            value of aces IS 
+            val = []
+                for n in n_aces:1:
+                    val.append = 11*n + (n_aces-n)
+        4. Return as s[total] 
+        """
+        non_aces = [x for x in hand if x!="A"]
+        other_value = sum([int(x) for x in non_aces])
+        aces_values = [m*11 + (n_aces-m)*1 for m in range(0,n_aces+1,1)]
+
+        total_values = [x + other_value for x in aces_values]
+
+        print("ace evaluation:")
+        print("    hand: {}".format(hand))
+        print("    total values: {}".format(total_values))
+
+        hand_values = [x for x in total_values if x<22]
+        if hand_values:
+            hand_value = max(hand_values)
+
+            hard_or_soft = "s" if hand_value-other_value>=11 else "h" # should actually be a multiple of 11
+
+            final_value = hard_or_soft + str(hand_value)
+        
+        else:
+            final_value = "B"
+
+        print("    final value: {}".format(final_value))
+        return final_value
+
 
 
 class Game(): 
@@ -169,7 +226,7 @@ class Game():
         # Hack a Hand object into existence for the dealer
         dealer_hand = Hand()
         dealer_hand.hand = [self.dealer.up, self.dealer.hole]
-        dealer_hand.hand.is_blackjack()
+        dealer_hand.is_hand_blackjack()
 
         self.dealer.hand = dealer_hand
 
@@ -216,27 +273,15 @@ class Game():
                 # If you can't split, figure out what your hand is and take the next step
         
                 # TODO pick up here. Do we move this loop into the Hand class?
-                next_action = hand.determine_hand_action(self.dealer.up, self.rule_set)
-                while (next_action!="-") and (next_action!="dbs"):
-                    if next_action=="B":
-                        # hand = ["BUSTED"]
-                        next_action = "-"
-                        continue
-                    if next_action=="db":
-                        hand.append(self.deck.draw())
-                        next_action = "-"
-                        print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
-                    if next_action=="h" or next_action=="sr":
-                        hand.append(self.deck.draw())
-                    next_action = hand.determine_hand_action(self.dealer.up, self.rule_set)
-
+                hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
+                
                 p.final_hands.append(hand)
             
-        # Deal with the consequences of doubling and somehow
+        # TODO: Update the Hand object logic to deal with the updating of wagers
         self.update_wagers()
 
         # Dealer has to play their hand
-        self.dealer_play_hand()
+        self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
         
         # Assess the final hands against the dealer hand
         self.assess_hands_against_dealer()
@@ -260,101 +305,11 @@ class Game():
     
     def update_wagers(self):
         return 1
-
-    def dealer_play_hand(self):
-        # Copy/paste of the loop above, should functionalize this
-        print("DEALER HAND: {} {}".format(self.dealer.hand[0], self.dealer.hand[1]))
-        next_action = self.determine_hand_action(self.dealer.hand, "0", self.dealer_rule_set)
-        print("next action: {}".format(next_action))
-        while (next_action!="-") and (next_action!="dbs"):
-            if next_action=="B":
-                next_action = "-"
-                continue
-            if next_action=="db":
-                self.dealer.hand.append(self.deck.draw())
-                next_action = "-"
-                print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
-            if next_action=="h" or next_action=="sr":
-                self.dealer.hand.append(self.deck.draw())
-                print("Dealer hit: {}".format(self.dealer.hand))
-            next_action = self.determine_hand_action(self.dealer.hand, "0", self.dealer_rule_set)
-            print("next action: {}".format(next_action))
-        return None
     
-    @staticmethod
-    def determine_hand_action(hand, up, rule_set) -> str:
-        """
-        Don't deal with splits here
-        Return the action to take, given the dealer's up card and the rule set
-        """
-        raise DeprecationWarning
-        action = ""
-        is_hand_all_integers = all([isInteger(x) for x in hand])
-        # If all cards are integers, return the sum
-        if is_hand_all_integers:
-            hand_value = sum([int(x) for x in hand])
-            if hand_value<12:
-                action = rule_set.loc[str(hand_value), up]
-            elif hand_value>21:
-                action = "B"
-            else: 
-                action = rule_set.loc["h"+str(hand_value), up]
-
-            return action
-        # If some cards are aces, figure out what the total is
-        
-        n_aces = sum([True if x == "A" else False for x in hand])
-
-        if n_aces>0:
-            ace_value = Game.figure_out_soft_hand(hand, n_aces)
-            if ace_value=="B":
-                action = "B"
-            else:
-                action = rule_set.loc[ace_value, up]
-            return action
-
-        print("hit an uncovered case")
-        return None
-
     @classmethod
     def get_rules(cls, path:str, idx:str="PH") -> pd.DataFrame:
         return pd.read_csv(path, sep=";").set_index(idx)
 
-    @classmethod
-    def figure_out_soft_hand(cls, hand, n_aces:int):
-        """
-        1. split hand into aces and other
-        2. compute total value of other
-        3. Find max of aces + other GIVEN
-            value of aces IS 
-            val = []
-                for n in n_aces:1:
-                    val.append = 11*n + (n_aces-n)
-        4. Return as s[total] 
-        """
-        non_aces = [x for x in hand if x!="A"]
-        other_value = sum([int(x) for x in non_aces])
-        aces_values = [m*11 + (n_aces-m)*1 for m in range(0,n_aces+1,1)]
-
-        total_values = [x + other_value for x in aces_values]
-
-        print("ace evaluation:")
-        print("    hand: {}".format(hand))
-        print("    total values: {}".format(total_values))
-
-        hand_values = [x for x in total_values if x<22]
-        if hand_values:
-            hand_value = max(hand_values)
-
-            hard_or_soft = "s" if hand_value-other_value>=11 else "h" # should actually be a multiple of 11
-
-            final_value = hard_or_soft + str(hand_value)
-        
-        else:
-            final_value = "B"
-
-        print("    final value: {}".format(final_value))
-        return final_value
 
 # class Agent
 class Agent():
