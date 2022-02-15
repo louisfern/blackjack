@@ -69,6 +69,8 @@ class Hand():
         self.hand = []
         self.is_blackjack = None
         self.can_split = None
+        self.result = None
+        self.hand_value = None
 
     def __repr__(self):
         rep = "WAGER: {}   HAND: {}".format(self.wager, self.hand)
@@ -111,7 +113,7 @@ class Hand():
                 action = "B"
             else: 
                 action = rule_set.loc["h"+str(hand_value), up]
-
+            self.hand_value = hand_value
             return action
         # If some cards are aces, figure out what the total is
         
@@ -119,6 +121,7 @@ class Hand():
 
         if n_aces>0:
             ace_value = Hand.figure_out_soft_hand(hand, n_aces)
+            self.hand_value = ace_value
             if ace_value=="B":
                 action = "B"
             else:
@@ -136,11 +139,12 @@ class Hand():
         while (next_action!="-") and (next_action!="dbs"):
             if next_action=="B":
                 next_action = "-"
+                self.result = "bust"
                 continue
             if next_action=="db":
                 self.hand.append(deck.draw())
                 next_action = "-"
-                print("DOUBLED, FIGURE OUT HOW TO CHANGE THAT BET")
+                self.double_down()
             if next_action=="h" or next_action=="sr":
                 self.hand.append(deck.draw())
             next_action = self.determine_hand_action(dealer_up, rule_set)
@@ -270,16 +274,10 @@ class Game():
                         print(p.hands)
                         continue
 
-                # If you can't split, figure out what your hand is and take the next step
-        
-                # TODO pick up here. Do we move this loop into the Hand class?
                 hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
                 
                 p.final_hands.append(hand)
             
-        # TODO: Update the Hand object logic to deal with the updating of wagers
-        self.update_wagers()
-
         # Dealer has to play their hand
         self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
         
@@ -290,17 +288,50 @@ class Game():
 
     def assess_hands_against_dealer(self):
         """
-
-        For each player:
-            For each hand:
-                Does dealer have blackjack?
-                    Do you have blackjack? Tie Else Bust
-                Do you have blackjack? If so, Blackjack
-                Did you bust? If so, Bust
-                Did you beat the dealer's number? If so, win
-                Did you tie the dealer's number? If so, push
-                Else, Bust
+        1. Remove any player hands that outright busted
+        2. Check for dealer blackjack. 
+            If dealer has blackjack, check each player/hand for blackjack
+                If blackjack, push, else, bust
+        3. If dealer busted, remaining hands win
+        4. If dealer didn't bust, compare to dealer
+            > dealer, win
+            < dealer, bust
+            == dealer, push
         """
+        dealer_has_blackjack = self.dealer.hand.is_blackjack
+
+        dealer_value = self.dealer.hand.hand_value
+        print("TEST--------")
+        print(self.dealer.hand)
+        print(dealer_value)
+
+        result = ""
+
+        for p in self.players:
+            for h in p.hands:
+                
+                if dealer_has_blackjack:
+                    if h.is_blackjack:
+                        h.result = "push"
+                    else:
+                        h.result = "bust"
+                    continue
+
+                if h.is_blackjack:
+                    h.result = "blackjack"
+                    continue
+
+                if h.result == "bust":
+                    continue
+
+                if h.hand_value == "B":
+                    h.result = "bust"
+                    continue
+                
+        if self.dealer.hand.result in ("bust", "B"):
+
+
+
         return 1
     
     def update_wagers(self):
