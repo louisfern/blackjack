@@ -18,11 +18,8 @@ Proposal:
 Players have an array of Hand objects
 A Hand object contains a list (the hand) and a wager property (the bet)
 Can move the "hand evaluation logic" to this class, perhaps?
-
-
-HOLD UP:
-why does 2-3 against a dealer's 8 up increase the wager?
 """
+
 from copy import deepcopy
 import random
 import pandas as pd
