@@ -329,8 +329,7 @@ class Game():
                     continue
                 
         if self.dealer.hand.result in ("bust", "B"):
-
-
+            print("nice")
 
         return 1
     
