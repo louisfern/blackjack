@@ -18,6 +18,10 @@ Proposal:
 Players have an array of Hand objects
 A Hand object contains a list (the hand) and a wager property (the bet)
 Can move the "hand evaluation logic" to this class, perhaps?
+
+
+HOLD UP:
+why does 2-3 against a dealer's 8 up increase the wager?
 """
 from copy import deepcopy
 import random
@@ -109,6 +113,8 @@ class Hand():
             hand_value = sum([int(x) for x in hand])
             if hand_value<12:
                 action = rule_set.loc[str(hand_value), up]
+                if action=="db" and len(hand)>2:
+                    action="h"
             elif hand_value>21:
                 action = "B"
             else: 
@@ -255,7 +261,7 @@ class Game():
 
                 # If you can split, and should split, do so and append two new hands
                 if hand.can_split: # can split
-                    hand_string = hand[0] + "-" + hand[1]
+                    hand_string = hand.hand[0] + "-" + hand.hand[1]
                     
                     # TODO: if we're splitting aces, only get one card apiece
 
