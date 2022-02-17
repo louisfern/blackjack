@@ -60,9 +60,7 @@ class Hand():
     Proposal: 
     Players have an array of Hand objects
     A Hand object contains a list for the hand and a wager property
-    Can move the "hand evaluation logic" to this class, perhaps?
-
-    Could just make this a pretty thin dataclass if I wanted to update my code
+    The Hand class contains the logic for figuring out how to play a hand, given a rule set
     """
     def __init__(self, wager_size=1.0):
         self.wager_size = wager_size
@@ -219,9 +217,6 @@ class Game():
     def perform_round(self):
         
         # Players bet
-        for p in self.players:
-            p.wager()
-
         self.dealer.hole = self.deck.draw()
 
         # Draw hands
@@ -236,16 +231,17 @@ class Game():
         dealer_hand.is_hand_blackjack()
 
         self.dealer.hand = dealer_hand
-
+        """
         # Check for dealer blackjack
         if self.dealer.hand.is_blackjack:
             # If dealer has blackjack, just pass everyone's hands on to the final
             # list of hands and we will evaluate later
-            # hack
+            # HACK
             # ignoring insurance for now
             for p in self.players:
                 p.final_hands = p.hands
             return None
+        """
 
         print("Dealer hand:")
         print(self.dealer.hand)
@@ -287,6 +283,9 @@ class Game():
         # Assess the final hands against the dealer hand
         self.assess_hands_against_dealer()
 
+        for p in self.players:
+            print(repr(p))
+
         return None
 
     def assess_hands_against_dealer(self):
@@ -300,41 +299,62 @@ class Game():
             > dealer, win
             < dealer, bust
             == dealer, push
+
+        TODO: How can I rewrite this as a matrix or dataframe operation?
         """
-        dealer_has_blackjack = self.dealer.hand.is_blackjack
-
+        
         dealer_value = self.dealer.hand.hand_value
-        print("TEST--------")
-        print(self.dealer.hand)
-        print(dealer_value)
 
-        result = ""
-
+        # Remove any player hands that outright busted        
         for p in self.players:
             for h in p.hands:
+
+                if h.hand_value == "B":
+                    h.result = "bust"
                 
-                if dealer_has_blackjack:
+                if h.result == "bust":
+                    p.bust_hand(h)
+
+        # Check for dealer blackjack. 
+        for p in self.players:
+            for h in p.hands:
+                if self.dealer.hand.is_blackjack:
                     if h.is_blackjack:
                         h.result = "push"
                     else:
                         h.result = "bust"
-                    continue
+                        p.bust_hand(h)
 
-                if h.is_blackjack:
-                    h.result = "blackjack"
-                    continue
-
-                if h.result == "bust":
-                    continue
-
-                if h.hand_value == "B":
-                    h.result = "bust"
-                    continue
-                
+        # If dealer busted, remaining hands win
         if self.dealer.hand.result in ("bust", "B"):
-            print("nice")
+            for p in self.players:
+                for h in p.hands:
+                    if h.is_blackjack:
+                        p.blackjack(h)
+                        h.result="blackjack"
+                    else:
+                        if h.result!="bust":
+                            p.win_hand(h)
+                            h.result="win"
+        else:
+            for p in self.players:
+                for h in p.hands:
+                    if h.is_blackjack:
+                        p.blackjack(h)
+                        h.result="blackjack"
+                    else:
+                        if h.result!="bust":
+                            if h.hand_value==dealer_value:
+                                h.result="push"
+                            if h.hand_value>dealer_value:
+                                h.result="win"
+                                p.win_hand(h)
+                            if h.hand_value<dealer_value:
+                                h.result="bust"
+                                p.bust_hand(h)
+        # If dealer didn't bust, compare to dealer
 
-        return 1
+        return self
     
     def update_wagers(self):
         return 1
@@ -367,8 +387,17 @@ class Player(Agent):
         self.n_hands=n_hands
         self.hands=[]
         self.final_hands=[]
-        self.wagers=[]
         self.bet_size=bet_size
+
+    def __repr__(self):
+        s1 = "Player debug log:\n"
+        s2 = [repr(h) for h in self.hands]
+        s3 = [repr(h) for h in self.final_hands]
+        s4 = "\n".join(s2)
+        s5 = "\n".join(s3)
+        ret = s1 + "Undealt hands: \n" + s4 + "Final hands: \n" + s5
+        return ret
+        
     
     def update_bet_size(self, game) -> float:
         """
@@ -378,12 +407,21 @@ class Player(Agent):
         raise NotImplementedError()
 
     def deal_hands(self, deck):
-        # self.hands = [[deck.draw(), deck.draw()] for n in range(self.n_hands)]
         self.hands = [Hand(wager_size=self.bet_size).draw_hand(deck) for n in range(self.n_hands)]
 
-    def wager(self):
-        self.wagers = [self.bet_size for n in range(self.n_hands)]
-        
+    def bust_hand(self, hand):
+        """
+        To do: implement a "return to the deck" functionality
+        """
+        self.bank -= hand.wager
+        return self
+
+    def win_hand(self, hand):
+        self.bank += hand.wager
+        return self
+
+    def blackjack(self, hand):
+        self.bank += hand.wager*1.5
 
 
 
@@ -396,8 +434,6 @@ def main():
 
     print("Dealer   UP {}   HOLE {}".format(game.dealer.up, game.dealer.hole))
     
-    print("final hands")
-    [print(p.final_hands) for p in game.players]
 
 if __name__=="__main__":
     main()
