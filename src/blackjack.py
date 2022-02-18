@@ -391,11 +391,12 @@ class Player(Agent):
 
     def __repr__(self):
         s1 = "Player debug log:\n"
+        s0 = "Bank: {}\n".format(self.bank)
         s2 = [repr(h) for h in self.hands]
         s3 = [repr(h) for h in self.final_hands]
         s4 = "\n".join(s2)
         s5 = "\n".join(s3)
-        ret = s1 + "Undealt hands: \n" + s4 + "Final hands: \n" + s5
+        ret = s1 + s0 + "Undealt hands: \n" + s4 + "Final hands: \n" + s5 + "\n"
         return ret
         
     
