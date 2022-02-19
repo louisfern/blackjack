@@ -122,7 +122,7 @@ class Hand():
 
         if n_aces>0:
             ace_value = Hand.figure_out_soft_hand(hand, n_aces)
-            self.hand_value = ace_value
+            self.hand_value = int(ace_value[1:]) if ace_value[0] in ("s","h") else ace_value
             if ace_value=="B":
                 action = "B"
             else:
@@ -153,7 +153,7 @@ class Hand():
         return self
 
     @classmethod
-    def figure_out_soft_hand(cls, hand, n_aces:int):
+    def figure_out_soft_hand(cls, hand, n_aces:int, debug:bool=False):
         """
         1. split hand into aces and other
         2. compute total value of other
@@ -170,9 +170,10 @@ class Hand():
 
         total_values = [x + other_value for x in aces_values]
 
-        print("ace evaluation:")
-        print("    hand: {}".format(hand))
-        print("    total values: {}".format(total_values))
+        if debug is True:
+            print("ace evaluation:")
+            print("    hand: {}".format(hand))
+            print("    total values: {}".format(total_values))
 
         hand_values = [x for x in total_values if x<22]
         if hand_values:
@@ -185,7 +186,9 @@ class Hand():
         else:
             final_value = "B"
 
-        print("    final value: {}".format(final_value))
+        if debug is True:
+            print("    final value: {}".format(final_value))
+
         return final_value
 
 
@@ -283,9 +286,12 @@ class Game():
         # Assess the final hands against the dealer hand
         self.assess_hands_against_dealer()
 
+        print("Player hands: ---------")
         for p in self.players:
             print(repr(p))
 
+        print("Dealer hand: ---------")
+        print(repr(self.dealer.hand))
         return None
 
     def assess_hands_against_dealer(self):
@@ -302,56 +308,70 @@ class Game():
 
         TODO: How can I rewrite this as a matrix or dataframe operation?
         """
-        
+        print("\nAssessing hands ---------\n")
         dealer_value = self.dealer.hand.hand_value
 
         # Remove any player hands that outright busted        
         for p in self.players:
-            for h in p.hands:
-
+            for h in p.final_hands:
                 if h.hand_value == "B":
                     h.result = "bust"
                 
                 if h.result == "bust":
                     p.bust_hand(h)
+                    print("Busting player hand")
 
         # Check for dealer blackjack. 
         for p in self.players:
-            for h in p.hands:
+            for h in p.final_hands:
                 if self.dealer.hand.is_blackjack:
+                    print("Dealer blackjack")
                     if h.is_blackjack:
                         h.result = "push"
+                        p.push_hand(h)
+                        print("Player push on dealer blackjack")
                     else:
                         h.result = "bust"
                         p.bust_hand(h)
+                        print("Player loses to dealer blackjack")
+
+                    return self
 
         # If dealer busted, remaining hands win
         if self.dealer.hand.result in ("bust", "B"):
+            print("Dealer bust")
             for p in self.players:
-                for h in p.hands:
+                for h in p.final_hands:
                     if h.is_blackjack:
                         p.blackjack(h)
                         h.result="blackjack"
+                        print("Player blackjack on dealer bust")
                     else:
                         if h.result!="bust":
                             p.win_hand(h)
                             h.result="win"
+                            print("Player wins on dealer bust")
         else:
             for p in self.players:
-                for h in p.hands:
+                for h in p.final_hands:
                     if h.is_blackjack:
                         p.blackjack(h)
                         h.result="blackjack"
+                        print("Player blackjack paying out")
                     else:
                         if h.result!="bust":
                             if h.hand_value==dealer_value:
                                 h.result="push"
+                                p.push_hand(h)
+                                print("Player push")
                             if h.hand_value>dealer_value:
                                 h.result="win"
                                 p.win_hand(h)
+                                print("Player beats dealer")
                             if h.hand_value<dealer_value:
                                 h.result="bust"
                                 p.bust_hand(h)
+                                print("Player loses to dealer")
         # If dealer didn't bust, compare to dealer
 
         return self
@@ -409,20 +429,25 @@ class Player(Agent):
 
     def deal_hands(self, deck):
         self.hands = [Hand(wager_size=self.bet_size).draw_hand(deck) for n in range(self.n_hands)]
+        self.bank -= self.bet_size*self.n_hands
 
     def bust_hand(self, hand):
         """
         To do: implement a "return to the deck" functionality
         """
-        self.bank -= hand.wager
+        # self.bank -= hand.wager
+        # Don't need to remove the wager, it's already been anted
         return self
 
     def win_hand(self, hand):
-        self.bank += hand.wager
+        self.bank += hand.wager*2
         return self
 
+    def push_hand(self, hand):
+        self.bank += hand.wager
+
     def blackjack(self, hand):
-        self.bank += hand.wager*1.5
+        self.bank += hand.wager*2.5
 
 
 
@@ -432,8 +457,6 @@ def main():
     
     game = Game(n_players=2)
     game.perform_round()
-
-    print("Dealer   UP {}   HOLE {}".format(game.dealer.up, game.dealer.hole))
     
 
 if __name__=="__main__":
