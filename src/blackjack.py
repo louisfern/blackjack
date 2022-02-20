@@ -192,7 +192,6 @@ class Hand():
 
         if debug is True:
             logger.debug("final value: {}".format(final_value))
-            print("    final value: {}".format(final_value))
 
         return final_value
 
@@ -290,21 +289,25 @@ class Game():
                     action = self.rule_set.loc[hand_string, self.dealer.up]
                     
                     if action == "spl": # should split
-                        print('split')
-                        print(hand)
+                        logger.debug("split")
+                        logger.debug(repr(hand))
                         new_hand_1 = deepcopy(hand)
                         new_hand_2 = deepcopy(hand)
                         
                         new_hand_1.hand = [hand.hand[0], self.deck.draw()]
+                        new_hand_1.can_split_hand()
+
                         new_hand_2.hand = [hand.hand[1], self.deck.draw()]
-                        
+                        new_hand_2.can_split_hand()
+
                         p.hands.append(new_hand_1)
                         p.hands.append(new_hand_2)
+                        logger.debug("Number of hands in queue: {}".format(len(p.hands)))
                         continue
-                else:
-                    hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
                 
-                    p.final_hands.append(hand)
+            hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
+                
+            p.final_hands.append(hand)
             
         # Dealer has to play their hand
         self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
