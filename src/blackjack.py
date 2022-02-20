@@ -21,11 +21,15 @@ Can move the "hand evaluation logic" to this class, perhaps?
 """
 
 from copy import deepcopy
+import logging
 import random
 import pandas as pd
 
 STANDARD_DECK = ["A", "10", "10", "10", "10", "9", "8", "7", "6", "5", "4", "3", "2"]*4 
 BLACKJACK = {"A","10"}
+
+logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s:%(message)s')
+logger = logging.getLogger(__name__)
 
 def isInteger(s:str)->bool:
     # taken from stack overflow
@@ -187,6 +191,7 @@ class Hand():
             final_value = "B"
 
         if debug is True:
+            logger.debug("final value: {}".format(final_value))
             print("    final value: {}".format(final_value))
 
         return final_value
@@ -203,11 +208,24 @@ class Game():
     analyze hands
     append to final hands
 
-
+    params:
+    players: mutually exclusive with n_players. List of Player objects
+    n_players: mutually exclusive with players. Int number of players to create
+    deck: Deck object to use
+    hands_per_player: Number of hands to play per player
+    
     """
-    def __init__(self, n_players:int = 1, deck=None, hands_per_player:int=2):
+    def __init__(self, 
+                 players=None, 
+                 n_players:int=1, 
+                 deck=None, 
+                 discard=None,
+                 hands_per_player:int=2):
         self.dealer = Dealer()
-        self.players = [Player(n_hands=hands_per_player) for x in range(n_players)]
+        if players is None:
+            self.players = [Player(n_hands=hands_per_player) for x in range(n_players)]
+        else:
+            self.players = players
         self.hands = []
         self.final_hands = []
         self.player_rule_location = "../data/basic_strategy_no_double_split.csv"
@@ -216,8 +234,14 @@ class Game():
         self.dealer_rule_set = self.get_rules(self.dealer_rule_location, idx="DH")
         if deck is None:
             self.deck = Deck().shuffle()
+        else:
+            self.deck = deck
+        if discard is None:
+            self.discard = Deck(contents=None)
+        else:
+            self.discard = discard
 
-    def perform_round(self):
+    def perform_round(self, debug=False):
         
         # Players bet
         self.dealer.hole = self.deck.draw()
@@ -246,17 +270,19 @@ class Game():
             return None
         """
 
-        print("Dealer hand:")
-        print(self.dealer.hand)
-        print("Player hands:")
-        [print(p.hands) for p in self.players]
+        if debug:
+            print("Dealer hand:")
+            print(self.dealer.hand)
+            print("Player hands:")
+            [print(p.hands) for p in self.players]
     
         for p in self.players:
             while p.hands:
                 hand = p.hands.pop()
-
+                # TODO splitting appears to be broken...
                 # If you can split, and should split, do so and append two new hands
                 if hand.can_split: # can split
+                    
                     hand_string = hand.hand[0] + "-" + hand.hand[1]
                     
                     # TODO: if we're splitting aces, only get one card apiece
@@ -264,37 +290,45 @@ class Game():
                     action = self.rule_set.loc[hand_string, self.dealer.up]
                     
                     if action == "spl": # should split
+                        print('split')
+                        print(hand)
                         new_hand_1 = deepcopy(hand)
                         new_hand_2 = deepcopy(hand)
                         
-                        new_hand_1.hand = [hand[0], self.deck.draw()]
-                        new_hand_2.hand = [hand[1], self.deck.draw()]
+                        new_hand_1.hand = [hand.hand[0], self.deck.draw()]
+                        new_hand_2.hand = [hand.hand[1], self.deck.draw()]
                         
                         p.hands.append(new_hand_1)
                         p.hands.append(new_hand_2)
-                        print("splitting, new stack of hands to deal:")
-                        print(p.hands)
                         continue
-
-                hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
+                else:
+                    hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
                 
-                p.final_hands.append(hand)
+                    p.final_hands.append(hand)
             
         # Dealer has to play their hand
         self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
         
         # Assess the final hands against the dealer hand
-        self.assess_hands_against_dealer()
+        self.assess_hands_against_dealer(debug=debug)
 
-        print("Player hands: ---------")
+        if debug:
+            print("Player hands: ---------")
+            for p in self.players:
+                print(repr(p))
+
+            print("Dealer hand: ---------")
+            print(repr(self.dealer.hand))
+
+        # Cleanup step
         for p in self.players:
-            print(repr(p))
+            p.clear_hands(self.discard)
 
-        print("Dealer hand: ---------")
-        print(repr(self.dealer.hand))
+        self.dealer.clear_hands(self.discard)
+
         return None
 
-    def assess_hands_against_dealer(self):
+    def assess_hands_against_dealer(self, debug=False):
         """
         1. Remove any player hands that outright busted
         2. Check for dealer blackjack. 
@@ -308,7 +342,7 @@ class Game():
 
         TODO: How can I rewrite this as a matrix or dataframe operation?
         """
-        print("\nAssessing hands ---------\n")
+
         dealer_value = self.dealer.hand.hand_value
 
         # Remove any player hands that outright busted        
@@ -319,59 +353,66 @@ class Game():
                 
                 if h.result == "bust":
                     p.bust_hand(h)
-                    print("Busting player hand")
+                    if debug:
+                        print("Busting player hand")
 
         # Check for dealer blackjack. 
         for p in self.players:
             for h in p.final_hands:
                 if self.dealer.hand.is_blackjack:
-                    print("Dealer blackjack")
                     if h.is_blackjack:
                         h.result = "push"
                         p.push_hand(h)
-                        print("Player push on dealer blackjack")
+                        if debug:
+                           print("Player push on dealer blackjack")
                     else:
                         h.result = "bust"
                         p.bust_hand(h)
-                        print("Player loses to dealer blackjack")
+                        if debug:
+                            print("Player loses to dealer blackjack")
 
                     return self
 
         # If dealer busted, remaining hands win
         if self.dealer.hand.result in ("bust", "B"):
-            print("Dealer bust")
             for p in self.players:
                 for h in p.final_hands:
                     if h.is_blackjack:
                         p.blackjack(h)
                         h.result="blackjack"
-                        print("Player blackjack on dealer bust")
+                        if debug:
+                            print("Player blackjack on dealer bust")
                     else:
                         if h.result!="bust":
                             p.win_hand(h)
                             h.result="win"
-                            print("Player wins on dealer bust")
+                            if debug:
+                                print("Player wins on dealer bust")
         else:
             for p in self.players:
                 for h in p.final_hands:
                     if h.is_blackjack:
                         p.blackjack(h)
                         h.result="blackjack"
-                        print("Player blackjack paying out")
+                        if debug:
+                            print("Player blackjack paying out")
                     else:
                         if h.result!="bust":
                             if h.hand_value==dealer_value:
                                 h.result="push"
                                 p.push_hand(h)
-                                print("Player push")
+                                if debug:
+                                    print("Player push")
                             if h.hand_value>dealer_value:
                                 h.result="win"
                                 p.win_hand(h)
-                                print("Player beats dealer")
+                                if debug:
+                                    print("Player beats dealer")
                             if h.hand_value<dealer_value:
                                 h.result="bust"
                                 p.bust_hand(h)
-                                print("Player loses to dealer")
+                                if debug:
+                                    print("Player loses to dealer")
         # If dealer didn't bust, compare to dealer
 
         return self
@@ -391,6 +432,9 @@ class Agent():
         self.hand=None
         self.hand_value = None # parsed value that corresponds to rule set
 
+    def clear_hands(self):
+        raise NotImplementedError
+
 # class Dealer sup Agent
 class Dealer(Agent):
     def __init__(self):
@@ -400,6 +444,12 @@ class Dealer(Agent):
         self.hole = None
         self.hand = None
 
+    def clear_hands(self, deck):
+        deck.stack+=self.hand.hand
+        self.hand=[]
+        self.hole=None
+        self.hand=None
+        
 # class Player sup Agent
 class Player(Agent):
     def __init__(self, bank:float=100, n_hands:int=1, bet_size:float=5.0):
@@ -449,14 +499,27 @@ class Player(Agent):
     def blackjack(self, hand):
         self.bank += hand.wager*2.5
 
+    def clear_hands(self, deck):
+        for h in self.hands:
+            deck.stack+=h.hand
+        self.hands = []
+        for h in self.final_hands:
+            deck.stack+=h.hand
+        self.final_hands = []
+
+
 
 
 def main():
     deck = Deck()
     deck.shuffle()
-    
-    game = Game(n_players=2)
-    game.perform_round()
+    discard = Deck(contents=None)
+    p1 = Player(n_hands=3)
+    p2 = Player(n_hands=2)
+    players = [p1, p2]
+    game = Game(players=players, deck=deck, discard=discard)
+    for i in range(2):
+        game.perform_round(debug=False)
     
 
 if __name__=="__main__":
