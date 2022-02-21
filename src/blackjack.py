@@ -42,9 +42,11 @@ def isInteger(s:str)->bool:
 class Deck():
     def __init__(self, contents:str = STANDARD_DECK):
         self.stack = []
+        self.n_cards = None
 
         if contents is not None:
             self.stack = self.stack + contents
+            self.n_cards = len(contents)
 
     def shuffle(self):
         random.shuffle(self.stack)
@@ -58,6 +60,15 @@ class Deck():
         card = self.stack.pop()
 
         return card
+
+    def check_shoe(self, discard, depth:float=.66):
+        """
+        If the fraction of remaining cards is lower than the minimum depth, shuffle discard back in
+        """
+        if (1-depth) > len(self.stack)/self.n_cards:
+            logger.debug("shuffling discard back in")
+            self.stack = random.shuffle(self.stack + discard.stack)
+        return self
 
 class Hand():
     """
@@ -463,13 +474,13 @@ class Player(Agent):
         self.bet_size=bet_size
 
     def __repr__(self):
-        s1 = "Player debug log:\n"
-        s0 = "Bank: {}\n".format(self.bank)
+        s1 = "Player debug log:"
+        s0 = " bank: {}".format(self.bank)
         s2 = [repr(h) for h in self.hands]
         s3 = [repr(h) for h in self.final_hands]
-        s4 = "\n".join(s2)
-        s5 = "\n".join(s3)
-        ret = s1 + s0 + "Undealt hands: \n" + s4 + "Final hands: \n" + s5 + "\n"
+        s4 = " ".join(s2)
+        s5 = " ".join(s3)
+        ret = s1 + s0 + " Undealt hands: " + s4 + " Final hands: " + s5
         return ret
         
     
@@ -514,14 +525,18 @@ class Player(Agent):
 
 
 def main():
-    deck = Deck()
+    deck = Deck(contents=STANDARD_DECK*6)
     deck.shuffle()
     discard = Deck(contents=None)
-    p1 = Player(n_hands=3)
+    p1 = Player(n_hands=2)
     p2 = Player(n_hands=2)
+    n_rounds = 100
+    logger.debug("Running {} rounds".format(n_rounds))
     players = [p1, p2]
     game = Game(players=players, deck=deck, discard=discard)
-    for i in range(2):
+    for i in range(n_rounds):
+        deck.check_shoe(discard, depth=.66)
+        logger.debug(len(deck.stack))
         game.perform_round(debug=False)
     
 
