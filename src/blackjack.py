@@ -157,7 +157,7 @@ class Hand():
         print("hit an uncovered case")
         return -1
 
-    def resolve_hand(self, dealer_up, rule_set, deck):
+    def resolve_hand(self, player, dealer_up, rule_set, deck):
         """
         Method to determine the next action to take
         """
@@ -170,7 +170,10 @@ class Hand():
             if next_action=="db":
                 self.hand.append(deck.draw())
                 next_action = "-"
+                player.bank-=self.wager
                 self.double_down()
+                
+                
             if next_action=="h" or next_action=="sr":
                 self.hand.append(deck.draw())
             next_action = self.determine_hand_action(dealer_up, rule_set)
@@ -329,12 +332,12 @@ class Game():
                         
                         continue
                 
-                hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
+                hand.resolve_hand(p, self.dealer.up, self.rule_set, self.deck)
                 
                 p.final_hands.append(hand)
             
         # Dealer has to play their hand
-        self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
+        self.dealer.hand.resolve_hand(None, "0", self.dealer_rule_set, self.deck)
         
         # Assess the final hands against the dealer hand
         self.assess_hands_against_dealer(debug=debug)
@@ -541,9 +544,9 @@ def main():
     deck = Deck(contents=STANDARD_DECK*6)
     deck.shuffle()
     discard = Deck(contents=None)
-    p1 = Player(n_hands=2)
-    p2 = Player(n_hands=2)
-    n_rounds = 2
+    p1 = Player(n_hands=2, bet_size=5)
+    p2 = Player(n_hands=2, bet_size=5)
+    n_rounds = 10000
     logger.debug("Running {} rounds".format(n_rounds))
     players = [p1, p2]
     game = Game(players=players, deck=deck, discard=discard)
