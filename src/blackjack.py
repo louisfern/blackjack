@@ -67,7 +67,9 @@ class Deck():
         """
         if (1-depth) > len(self.stack)/self.n_cards:
             logger.debug("shuffling discard back in")
-            self.stack = random.shuffle(self.stack + discard.stack)
+            new_stack = self.stack + discard.stack
+            self.stack = new_stack
+            random.shuffle(self.stack)
         return self
 
 class Hand():
@@ -122,9 +124,13 @@ class Hand():
         if is_hand_all_integers:
             hand_value = sum([int(x) for x in hand])
             if hand_value<12:
-                action = rule_set.loc[str(hand_value), up]
-                if action=="db" and len(hand)>2:
-                    action="h"
+                if len(set(hand))>1:
+                    action = rule_set.loc[str(hand_value), up]
+                    if action=="db" and len(hand)>2:
+                        action="h"
+                else:
+                    hand_string = hand[0] + "-" + hand[1]
+                    action = rule_set.loc[hand_string, up]
             elif hand_value>21:
                 action = "B"
             else: 
@@ -300,8 +306,6 @@ class Game():
                     action = self.rule_set.loc[hand_string, self.dealer.up]
                     
                     if action == "spl": # should split
-                        logger.debug("split")
-                        logger.debug(repr(hand))
                         new_hand_1 = deepcopy(hand)
                         new_hand_2 = deepcopy(hand)
                         
@@ -311,14 +315,20 @@ class Game():
                         new_hand_2.hand = [hand.hand[1], self.deck.draw()]
                         new_hand_2.can_split_hand()
 
+                        if hand_string=="2-2":
+                            logger.debug("HIT 2-2")
+                            logger.debug(repr(hand))
+                            logger.debug(repr(new_hand_1))
+                            logger.debug(repr(new_hand_2))
+
                         p.hands.append(new_hand_1)
                         p.hands.append(new_hand_2)
                         logger.debug("Number of hands in queue: {}".format(len(p.hands)))
                         continue
                 
-            hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
+                hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
                 
-            p.final_hands.append(hand)
+                p.final_hands.append(hand)
             
         # Dealer has to play their hand
         self.dealer.hand.resolve_hand("0", self.dealer_rule_set, self.deck)
