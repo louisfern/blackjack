@@ -66,8 +66,9 @@ class Deck():
         If the fraction of remaining cards is lower than the minimum depth, shuffle discard back in
         """
         if (1-depth) > len(self.stack)/self.n_cards:
-            logger.debug("shuffling discard back in")
+            # logger.debug("shuffling discard back in")
             new_stack = self.stack + discard.stack
+            discard.stack = []
             self.stack = new_stack
             random.shuffle(self.stack)
         return self
@@ -87,6 +88,7 @@ class Hand():
         self.can_split = None
         self.result = None
         self.hand_value = None
+        self.has_split = None # Can't double after split
 
     def __repr__(self):
         rep = "WAGER: {}   HAND: {}".format(self.wager, self.hand)
@@ -127,6 +129,8 @@ class Hand():
                 if len(set(hand))>1:
                     action = rule_set.loc[str(hand_value), up]
                     if action=="db" and len(hand)>2:
+                        action="h"
+                    if action=="db" and self.has_split:
                         action="h"
                 else:
                     hand_string = hand[0] + "-" + hand[1]
@@ -308,22 +312,21 @@ class Game():
                     if action == "spl": # should split
                         new_hand_1 = deepcopy(hand)
                         new_hand_2 = deepcopy(hand)
+
+                        # Remove some money from the player's bank
+                        p.bank-=new_hand_1.wager
                         
                         new_hand_1.hand = [hand.hand[0], self.deck.draw()]
                         new_hand_1.can_split_hand()
+                        new_hand_1.has_split=True
 
                         new_hand_2.hand = [hand.hand[1], self.deck.draw()]
                         new_hand_2.can_split_hand()
-
-                        if hand_string=="2-2":
-                            logger.debug("HIT 2-2")
-                            logger.debug(repr(hand))
-                            logger.debug(repr(new_hand_1))
-                            logger.debug(repr(new_hand_2))
+                        new_hand_2.has_split=True
 
                         p.hands.append(new_hand_1)
                         p.hands.append(new_hand_2)
-                        logger.debug("Number of hands in queue: {}".format(len(p.hands)))
+                        
                         continue
                 
                 hand.resolve_hand(self.dealer.up, self.rule_set, self.deck)
@@ -540,14 +543,18 @@ def main():
     discard = Deck(contents=None)
     p1 = Player(n_hands=2)
     p2 = Player(n_hands=2)
-    n_rounds = 100
+    n_rounds = 2
     logger.debug("Running {} rounds".format(n_rounds))
     players = [p1, p2]
     game = Game(players=players, deck=deck, discard=discard)
     for i in range(n_rounds):
+        # logger.debug("Number of cards in shoe: {}".format(len(deck.stack)))
         deck.check_shoe(discard, depth=.66)
-        logger.debug(len(deck.stack))
         game.perform_round(debug=False)
+
+    for p in players:
+        logger.debug("Player summary: \n")
+        logger.debug(repr(p))
     
 
 if __name__=="__main__":
