@@ -55,12 +55,7 @@ class Deck():
         return self
 
     def draw(self) -> str:
-        if len(self.stack)==0: # inefficient to check this here
-            print("Out of cards!") # move to game loop, track size there
-            raise IndexError()
-
         card = self.stack.pop()
-
         return card
 
     def check_shoe(self, discard, depth:float=.66):
