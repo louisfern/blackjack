@@ -127,18 +127,18 @@ class Hand():
             hand_value = sum([int(x) for x in hand])
             if hand_value<12:
                 if len(set(hand))>1:
-                    action = rule_set.loc[str(hand_value), up]
+                    action = rule_set.at[str(hand_value), up]
                     if action=="db" and len(hand)>2:
                         action="h"
                     if action=="db" and self.has_split:
                         action="h"
                 else:
                     hand_string = hand[0] + "-" + hand[1]
-                    action = rule_set.loc[hand_string, up]
+                    action = rule_set.at[hand_string, up]
             elif hand_value>21:
                 action = "B"
             else: 
-                action = rule_set.loc["h"+str(hand_value), up]
+                action = rule_set.at["h"+str(hand_value), up]
             self.hand_value = hand_value
             return action
         # If some cards are aces, figure out what the total is
@@ -151,7 +151,7 @@ class Hand():
             if ace_value=="B":
                 action = "B"
             else:
-                action = rule_set.loc[ace_value, up]
+                action = rule_set.at[ace_value, up]
             return action
 
         print("hit an uncovered case")
@@ -310,7 +310,7 @@ class Game():
                     
                     # TODO: if we're splitting aces, only get one card apiece
 
-                    action = self.rule_set.loc[hand_string, self.dealer.up]
+                    action = self.rule_set.at[hand_string, self.dealer.up]
                     
                     if action == "spl": # should split
                         new_hand_1 = deepcopy(hand)
@@ -546,7 +546,7 @@ def main():
     discard = Deck(contents=None)
     p1 = Player(n_hands=2, bet_size=5)
     p2 = Player(n_hands=2, bet_size=5)
-    n_rounds = 10000
+    n_rounds = 1000000
     logger.debug("Running {} rounds".format(n_rounds))
     players = [p1, p2]
     game = Game(players=players, deck=deck, discard=discard)
