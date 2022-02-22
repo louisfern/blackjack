@@ -22,7 +22,7 @@ Can move the "hand evaluation logic" to this class, perhaps?
 
 from copy import deepcopy
 import logging
-import random
+import numpy as np
 import pandas as pd
 
 STANDARD_DECK = ["A", "10", "10", "10", "10", "9", "8", "7", "6", "5", "4", "3", "2"]*4 
@@ -30,6 +30,8 @@ BLACKJACK = {"A","10"}
 
 logging.basicConfig(level=logging.DEBUG, format='%(name)s %(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
+
+rng = np.random.default_rng()
 
 def isInteger(s:str)->bool:
     # taken from stack overflow
@@ -49,7 +51,7 @@ class Deck():
             self.n_cards = len(contents)
 
     def shuffle(self):
-        random.shuffle(self.stack)
+        rng.shuffle(self.stack)
         return self
 
     def draw(self) -> str:
@@ -70,7 +72,7 @@ class Deck():
             new_stack = self.stack + discard.stack
             discard.stack = []
             self.stack = new_stack
-            random.shuffle(self.stack)
+            rng.shuffle(self.stack)
         return self
 
 class Hand():
