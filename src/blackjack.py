@@ -127,18 +127,18 @@ class Hand():
             hand_value = sum([int(x) for x in hand])
             if hand_value<12:
                 if len(set(hand))>1:
-                    action = rule_set.at[str(hand_value), up]
+                    action = rule_set[up][str(hand_value)]
                     if action=="db" and len(hand)>2:
                         action="h"
                     if action=="db" and self.has_split:
                         action="h"
                 else:
                     hand_string = hand[0] + "-" + hand[1]
-                    action = rule_set.at[hand_string, up]
+                    action = rule_set[up][hand_string]
             elif hand_value>21:
                 action = "B"
             else: 
-                action = rule_set.at["h"+str(hand_value), up]
+                action = rule_set[up]["h"+str(hand_value)]
             self.hand_value = hand_value
             return action
         # If some cards are aces, figure out what the total is
@@ -151,7 +151,7 @@ class Hand():
             if ace_value=="B":
                 action = "B"
             else:
-                action = rule_set.at[ace_value, up]
+                action = rule_set[up][ace_value]
             return action
 
         print("hit an uncovered case")
@@ -310,7 +310,7 @@ class Game():
                     
                     # TODO: if we're splitting aces, only get one card apiece
 
-                    action = self.rule_set.at[hand_string, self.dealer.up]
+                    action = self.rule_set[self.dealer.up][hand_string]
                     
                     if action == "spl": # should split
                         new_hand_1 = deepcopy(hand)
@@ -452,7 +452,7 @@ class Game():
     
     @classmethod
     def get_rules(cls, path:str, idx:str="PH") -> pd.DataFrame:
-        return pd.read_csv(path, sep=";").set_index(idx)
+        return pd.read_csv(path, sep=";").set_index(idx).to_dict()
 
 
 # class Agent
